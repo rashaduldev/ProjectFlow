@@ -1,5 +1,4 @@
 import {
-  AuthResponse,
   CreateSubmissionPayload,
   PaginatedSubmissionsResponse,
   Submission,
@@ -33,25 +32,9 @@ export class ApiHttpError extends Error {
 
 export type ApiMode = "live" | "mock"
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
-
-const TOKEN_STORAGE_KEY = "ph_dashboard_jwt_token"
 const MODE_STORAGE_KEY = "ph_dashboard_api_mode"
 
-export function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY)
-}
-
-export function setStoredToken(token: string | null) {
-  if (typeof window === "undefined") return
-  if (token) {
-    window.localStorage.setItem(TOKEN_STORAGE_KEY, token)
-  } else {
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY)
-  }
-}
+type AuthSessionResponse = { user: User }
 
 export function getStoredApiMode(): ApiMode {
   if (typeof window === "undefined") return "mock" // Default to mock for seamless hiring evaluator review unless configured
@@ -68,30 +51,25 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getStoredToken()
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   }
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
-  }
-
-  const url = `${API_BASE_URL}${endpoint}`
+  const url = endpoint.startsWith("/api/auth/") ? endpoint : `/api/backend${endpoint}`
 
   let response: Response
   try {
     response = await fetch(url, {
       ...options,
       headers,
+      credentials: "same-origin",
     })
   } catch (err) {
     // Real network failure (CORS, ECONNREFUSED, Server down)
     console.warn("Live API request failed:", err)
     throw new ApiConnectionError(
-      API_BASE_URL,
-      `Backend unreachable at ${url}. Ensure Express.js backend is running on ${API_BASE_URL}.`
+      url,
+      `Unable to reach the authentication service at ${url}. Check the Next.js server and configured Express API.`
     )
   }
 
@@ -125,17 +103,13 @@ async function request<T>(
  */
 export const api = {
   auth: {
-    async register(data: {
-      name: string
-      email: string
-      password: string
-      role: "STUDENT" | "MENTOR"
-    }): Promise<AuthResponse> {
+    async register(data: { name: string; email: string; password: string }): Promise<AuthSessionResponse> {
       const mode = getStoredApiMode()
       if (mode === "mock") {
-        return mockApiService.register(data)
+        const response = await mockApiService.register({ ...data, role: "STUDENT" })
+        return { user: response.user }
       }
-      return request<AuthResponse>("/auth/register", {
+      return request<AuthSessionResponse>("/api/auth/register", {
         method: "POST",
         body: JSON.stringify(data),
       })
@@ -144,30 +118,29 @@ export const api = {
     async login(data: {
       email: string
       password: string
-    }): Promise<AuthResponse> {
+    }): Promise<AuthSessionResponse> {
       const mode = getStoredApiMode()
       if (mode === "mock") {
-        return mockApiService.login(data.email)
+        const response = await mockApiService.login(data.email, data.password)
+        return { user: response.user }
       }
-      return request<AuthResponse>("/auth/login", {
+      return request<AuthSessionResponse>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(data),
       })
     },
 
-    async me(): Promise<{ user: User }> {
+    async me(): Promise<{ user: User | null }> {
       const mode = getStoredApiMode()
       if (mode === "mock") {
-        return {
-          user: {
-            id: "usr_student_1",
-            name: "Tanvir Ahmed",
-            email: "student@example.com",
-            role: "STUDENT",
-          },
-        }
+        return { user: null }
       }
-      return request<{ user: User }>("/auth/me")
+      return request<{ user: User | null }>("/api/auth/me")
+    },
+
+    async logout(): Promise<void> {
+      if (getStoredApiMode() === "mock") return
+      await request<{ success: boolean }>("/api/auth/logout", { method: "POST" })
     },
   },
 

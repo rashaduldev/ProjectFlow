@@ -132,6 +132,11 @@ const SEED_SUBMISSIONS: Submission[] = [
   },
 ]
 
+const mockPasswords = new Map([
+  ["student@example.com", "Password123!"],
+  ["mentor@example.com", "Password123!"],
+])
+
 const MOCK_STORAGE_KEY = "ph_dashboard_mock_submissions_v2"
 const MOCK_USERS_KEY = "ph_dashboard_mock_users_v2"
 
@@ -203,6 +208,7 @@ export const mockApiService = {
 
     users.push(newUser)
     saveStoredUsers(users)
+    mockPasswords.set(newUser.email, data.password)
 
     return {
       user: newUser,
@@ -210,11 +216,11 @@ export const mockApiService = {
     }
   },
 
-  async login(email: string): Promise<AuthResponse> {
+  async login(email: string, password: string): Promise<AuthResponse> {
     await new Promise((r) => setTimeout(r, 350))
     const users = getStoredUsers()
     const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase().trim())
-    if (!user) {
+    if (!user || mockPasswords.get(user.email.toLowerCase()) !== password) {
       throw new Error("Invalid email or password (401 Unauthorized).")
     }
 

@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/context/auth-context"
 import { api } from "@/lib/api/client"
@@ -20,6 +22,8 @@ import {
 export function AppHeader() {
   const { user, logout, quickLoginDemo, apiMode, setApiMode } = useAuth()
   const { theme, setTheme } = useTheme()
+  const pathname = usePathname()
+  const router = useRouter()
   const [resetNotice, setResetNotice] = React.useState(false)
 
   const handleReset = () => {
@@ -33,7 +37,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80">
-      <div className="container mx-auto flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6 max-w-[1440px]">
+      <div className="container mx-auto flex min-h-[72px] flex-wrap items-center justify-between gap-3 px-4 py-2 sm:flex-nowrap sm:px-6 max-w-[1440px]">
         {/* Brand & Assessment Title */}
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-xs">
@@ -53,6 +57,29 @@ export function AppHeader() {
             </p>
           </div>
         </div>
+
+        {user && (
+          <nav aria-label="Main navigation" className="order-3 flex w-full items-center gap-1 overflow-x-auto sm:order-none sm:w-auto">
+            {(user.role === "STUDENT"
+              ? [
+                  { href: "/student/dashboard", label: "Dashboard" },
+                  { href: "/student/submissions/new", label: "New submission" },
+                  { href: "/student/submissions", label: "My submissions" },
+                ]
+              : [
+                  { href: "/mentor/dashboard", label: "Dashboard" },
+                  { href: "/mentor/submissions", label: "Submissions" },
+                ]
+            ).map((item) => {
+              const active = pathname === item.href || (item.href.endsWith("/dashboard") && pathname === "/")
+              return (
+                <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+        )}
 
         {/* Center: Live API vs Mock Mode Selector */}
         <div className="flex items-center gap-2">
@@ -133,7 +160,11 @@ export function AppHeader() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => quickLoginDemo(user.role === "STUDENT" ? "MENTOR" : "STUDENT")}
+                onClick={async () => {
+                  const role = user.role === "STUDENT" ? "MENTOR" : "STUDENT"
+                  await quickLoginDemo(role)
+                  router.push(role === "MENTOR" ? "/mentor/dashboard" : "/student/dashboard")
+                }}
                 className="text-[11px] h-7 px-2 text-primary font-medium ml-1 hidden sm:inline-flex"
                 title="Toggle between Student and Mentor perspectives"
               >

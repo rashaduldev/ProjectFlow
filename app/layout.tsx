@@ -1,6 +1,7 @@
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils";
+import { AuthProvider } from "@/context/auth-context"
 
 export default function RootLayout({
   children,
@@ -14,7 +15,9 @@ export default function RootLayout({
       className={cn("antialiased font-sans")}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

@@ -19,8 +19,11 @@ export const registerSchema = z.object({
     .string()
     .min(1, "Email is required.")
     .email("Please enter a valid email address."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
-  role: z.enum(["STUDENT", "MENTOR"]),
+  password: z.string().min(8, "Password must be at least 8 characters."),
+  confirmPassword: z.string().min(1, "Please confirm your password."),
+}).refine((values) => values.password === values.confirmPassword, {
+  path: ["confirmPassword"],
+  message: "Passwords do not match.",
 })
 
 export type RegisterFormValues = z.infer<typeof registerSchema>

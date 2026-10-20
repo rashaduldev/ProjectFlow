@@ -8,185 +8,124 @@ import {
   ApiHttpError,
   ApiMode,
   getStoredApiMode,
-  getStoredToken,
   setStoredApiMode,
-  setStoredToken,
 } from "@/lib/api/client"
 
 interface AuthContextType {
   user: User | null
-  token: string | null
   isAuthenticated: boolean
   isLoading: boolean
   apiMode: ApiMode
   setApiMode: (mode: ApiMode) => void
   authError: string | null
   clearAuthError: () => void
-  login: (email: string, password: string) => Promise<boolean>
-  register: (
-    name: string,
-    email: string,
-    password: string,
-    role: UserRole
-  ) => Promise<boolean>
+  login: (email: string, password: string) => Promise<UserRole | null>
+  register: (name: string, email: string, password: string) => Promise<UserRole | null>
   logout: () => void
   quickLoginDemo: (role: UserRole) => Promise<void>
 }
 
 const AuthContext = React.createContext<AuthContextType | null>(null)
 
-const USER_STORAGE_KEY = "ph_dashboard_user_profile"
+function errorMessage(err: unknown, fallback: string) {
+  if (err instanceof ApiHttpError && err.errors) {
+    const details = Object.values(err.errors).flat().join(" ")
+    return details ? `${err.message} ${details}` : err.message
+  }
+  if (err instanceof ApiConnectionError || err instanceof ApiHttpError || err instanceof Error) {
+    return err.message
+  }
+  return fallback
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | null>(() => {
-    if (typeof window === "undefined") return null
-    try {
-      const rawUser = window.localStorage.getItem(USER_STORAGE_KEY)
-      if (rawUser) {
-        return JSON.parse(rawUser)
-      }
-      const storedMode = getStoredApiMode()
-      if (storedMode === "mock") {
-        const defaultStudent: User = {
-          id: "usr_student_1",
-          name: "Tanvir Ahmed",
-          email: "student@example.com",
-          role: "STUDENT",
-        }
-        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(defaultStudent))
-        return defaultStudent
-      }
-    } catch {
-      return null
-    }
-    return null
-  })
-
-  const [token, setToken] = React.useState<string | null>(() => getStoredToken())
-  const [apiMode, setApiModeState] = React.useState<ApiMode>(() => getStoredApiMode())
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [user, setUser] = React.useState<User | null>(null)
+  const [apiMode, setApiModeState] = React.useState<ApiMode>("mock")
+  const [isLoading, setIsLoading] = React.useState(true)
   const [authError, setAuthError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let active = true
+    setApiModeState(getStoredApiMode())
+    api.auth
+      .me()
+      .then(({ user: currentUser }) => {
+        if (active) setUser(currentUser)
+      })
+      .catch(() => {
+        if (active) setUser(null)
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   const setApiMode = React.useCallback((mode: ApiMode) => {
     setApiModeState(mode)
     setStoredApiMode(mode)
-  }, [])
-
-  const clearAuthError = React.useCallback(() => {
+    setUser(null)
     setAuthError(null)
   }, [])
 
-  const login = React.useCallback(
-    async (email: string, password: string): Promise<boolean> => {
-      setIsLoading(true)
-      setAuthError(null)
+  const clearAuthError = React.useCallback(() => setAuthError(null), [])
 
-      try {
-        const response = await api.auth.login({ email, password })
-        setUser(response.user)
-        setToken(response.token)
-        setStoredToken(response.token)
-        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user))
-        setIsLoading(false)
-        return true
-      } catch (err: unknown) {
-        if (err instanceof ApiConnectionError || err instanceof ApiHttpError) {
-          setAuthError(err.message)
-        } else if (err instanceof Error) {
-          setAuthError(err.message)
-        } else {
-          setAuthError("Login failed. Please check credentials.")
-        }
-        setIsLoading(false)
-        return false
-      }
-    },
-    []
-  )
+  const login = React.useCallback(async (email: string, password: string): Promise<UserRole | null> => {
+    setIsLoading(true)
+    setAuthError(null)
+    try {
+      const response = await api.auth.login({ email, password })
+      setUser(response.user)
+      return response.user.role
+    } catch (err: unknown) {
+      setAuthError(errorMessage(err, "Login failed. Please check your details."))
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
-  const register = React.useCallback(
-    async (
-      name: string,
-      email: string,
-      password: string,
-      role: UserRole
-    ): Promise<boolean> => {
-      setIsLoading(true)
-      setAuthError(null)
+  const register = React.useCallback(async (name: string, email: string, password: string): Promise<UserRole | null> => {
+    setIsLoading(true)
+    setAuthError(null)
+    try {
+      const response = await api.auth.register({ name, email, password })
+      setUser(response.user)
+      return response.user.role
+    } catch (err: unknown) {
+      setAuthError(errorMessage(err, "Registration failed."))
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
-      try {
-        const response = await api.auth.register({ name, email, password, role })
-        setUser(response.user)
-        setToken(response.token)
-        setStoredToken(response.token)
-        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user))
-        setIsLoading(false)
-        return true
-      } catch (err: unknown) {
-        if (err instanceof ApiConnectionError || err instanceof ApiHttpError) {
-          setAuthError(err.message)
-        } else if (err instanceof Error) {
-          setAuthError(err.message)
-        } else {
-          setAuthError("Registration failed.")
-        }
-        setIsLoading(false)
-        return false
-      }
-    },
-    []
-  )
-
-  const quickLoginDemo = React.useCallback(
-    async (targetRole: UserRole) => {
-      setIsLoading(true)
-      setAuthError(null)
-
-      const email = targetRole === "STUDENT" ? "student@example.com" : "mentor@example.com"
-      const password = "Password123!"
-
-      try {
-        await login(email, password)
-      } catch {
-        // Fallback for mock if login failed
-        const fallbackUser: User =
-          targetRole === "STUDENT"
-            ? {
-                id: "usr_student_1",
-                name: "Tanvir Ahmed",
-                email: "student@example.com",
-                role: "STUDENT",
-              }
-            : {
-                id: "usr_mentor_1",
-                name: "Nayeem Chowdhury",
-                email: "mentor@example.com",
-                role: "MENTOR",
-              }
-        setUser(fallbackUser)
-        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(fallbackUser))
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [login]
-  )
+  const quickLoginDemo = React.useCallback(async (role: UserRole) => {
+    if (getStoredApiMode() === "mock") {
+      setUser(
+        role === "STUDENT"
+          ? { id: "usr_student_1", name: "Tanvir Ahmed", email: "student@example.com", role }
+          : { id: "usr_mentor_1", name: "Nayeem Chowdhury", email: "mentor@example.com", role }
+      )
+      return
+    }
+    await login(role === "STUDENT" ? "student@example.com" : "mentor@example.com", "Password123!")
+  }, [login])
 
   const logout = React.useCallback(() => {
     setUser(null)
-    setToken(null)
-    setStoredToken(null)
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(USER_STORAGE_KEY)
-    }
+    void api.auth.logout().catch((err: unknown) => {
+      setAuthError(errorMessage(err, "Unable to end the server session."))
+    })
   }, [])
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
-        isAuthenticated: !!user,
+        isAuthenticated: user !== null,
         isLoading,
         apiMode,
         setApiMode,
@@ -205,9 +144,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = React.useContext(AuthContext)
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider")
   return context
 }
-

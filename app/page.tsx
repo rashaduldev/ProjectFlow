@@ -1,4 +1,3 @@
-import { AuthProvider } from "@/context/auth-context"
 import { MainDashboard } from "@/components/navigation/main-dashboard"
 
 export const metadata = {
@@ -9,8 +8,6 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <AuthProvider>
-      <MainDashboard />
-    </AuthProvider>
+    <MainDashboard />
   )
 }

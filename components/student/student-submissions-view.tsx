@@ -52,7 +52,7 @@ function StatusPill({ status }: { status: SubmissionStatus }) {
   }
 }
 
-export function StudentSubmissionsView() {
+export function StudentSubmissionsView({ section = "dashboard" }: { section?: "dashboard" | "new" | "submissions" }) {
   const { user } = useAuth()
 
   const [submissions, setSubmissions] = React.useState<Submission[]>([])
@@ -111,7 +111,7 @@ export function StudentSubmissionsView() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-foreground">
-              Welcome, {user?.name || "Student"}
+              {section === "new" ? "New project submission" : section === "submissions" ? "My submissions" : `Welcome, ${user?.name || "Student"}`}
             </h1>
             <Badge variant="outline" className="text-[10px] gap-1 py-0">
               <GraduationCap className="h-3 w-3 text-primary" />
@@ -119,7 +119,7 @@ export function StudentSubmissionsView() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-2 max-w-xl leading-6">
-            Submit your project repository and live deployment URL for mentor evaluation. Monitor feedback and review statuses in real time.
+            {section === "submissions" ? "Review submission status, open project links, and read mentor feedback." : "Submit your project repository and live deployment URL for mentor evaluation. Monitor feedback and review statuses in real time."}
           </p>
         </div>
 
@@ -136,7 +136,7 @@ export function StudentSubmissionsView() {
       </div>
 
       {/* Submission Overview Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {section === "dashboard" && <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 border-border shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Total Projects</span>
@@ -180,13 +180,13 @@ export function StudentSubmissionsView() {
             <span className="text-xs text-destructive/80">needs fix</span>
           </div>
         </Card>
-      </div>
+      </div>}
 
       {/* New Project Submission Form (React Hook Form + Zod) */}
-      <ProjectSubmissionForm
+      {(section === "dashboard" || section === "new") && <ProjectSubmissionForm
         existingSubmissions={submissions}
         onSubmissionSuccess={handleNewSubmission}
-      />
+      />}
 
       {/* Error state if fetching failed */}
       {apiError && (
@@ -198,7 +198,7 @@ export function StudentSubmissionsView() {
       )}
 
       {/* My Submissions List */}
-      <div className="space-y-3">
+      {(section === "dashboard" || section === "submissions") && <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-base font-bold text-foreground">
             My Submissions ({submissions.length})
@@ -218,7 +218,7 @@ export function StudentSubmissionsView() {
             <FolderGit2 className="h-8 w-8 text-muted-foreground mx-auto" />
             <h4 className="text-sm font-semibold">No Submissions Yet</h4>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Use the form above to submit your project for mentor evaluation.
+              {section === "submissions" ? "Your submitted projects will appear here." : "Use the form above to submit your project for mentor evaluation."}
             </p>
           </div>
         ) : (
@@ -281,7 +281,7 @@ export function StudentSubmissionsView() {
             })}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

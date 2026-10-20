@@ -9,6 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -29,6 +38,7 @@ import {
   Check,
   X,
   AlertCircle,
+  HelpCircle,
 } from "lucide-react"
 
 interface MentorSubmissionsTableProps {
@@ -56,7 +66,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
     message: string
   } | null>(null)
 
-  // Action dialog state (for approve or reject with feedback)
+  // Confirmation dialog state before approving or rejecting
   const [actionTarget, setActionTarget] = React.useState<{
     submission: Submission
     type: "APPROVED" | "REJECTED"
@@ -133,7 +143,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
 
       setFeedbackNotice({
         type: "success",
-        message: `Submission for "${updated.projectName}" has been ${actionTarget.type.toLowerCase()} successfully.`,
+        message: `Submission "${updated.projectName}" has been ${actionTarget.type.toLowerCase()} successfully.`,
       })
 
       setActionTarget(null)
@@ -201,7 +211,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
         </Alert>
       )}
 
-      {/* Server-Side Filter Bar */}
+      {/* Filter and Search Bar */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           {/* Search Input */}
@@ -230,7 +240,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
           </Button>
         </div>
 
-        {/* Server-side status filters: All, Approved, Rejected, Pending */}
+        {/* Server-Side Status Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5 border-t border-border/80 pt-3">
           <span className="text-[11px] font-semibold text-muted-foreground mr-1">
             Server Filter:
@@ -241,7 +251,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             onClick={() => handleFilterChange("ALL")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               statusFilter === "ALL"
-                ? "bg-primary text-primary-foreground shadow-xs"
+                ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                 : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
@@ -253,7 +263,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             onClick={() => handleFilterChange("APPROVED")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1 ${
               statusFilter === "APPROVED"
-                ? "bg-emerald-600 text-white shadow-xs"
+                ? "bg-emerald-600 text-white shadow-xs font-semibold"
                 : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
@@ -266,7 +276,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             onClick={() => handleFilterChange("REJECTED")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1 ${
               statusFilter === "REJECTED"
-                ? "bg-destructive text-destructive-foreground shadow-xs"
+                ? "bg-destructive text-destructive-foreground shadow-xs font-semibold"
                 : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
@@ -279,7 +289,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             onClick={() => handleFilterChange("PENDING")}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1 ${
               statusFilter === "PENDING"
-                ? "bg-amber-600 text-white shadow-xs"
+                ? "bg-amber-600 text-white shadow-xs font-semibold"
                 : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
@@ -289,128 +299,150 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
         </div>
       </div>
 
-      {/* Paginated Submissions Table / Cards */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+      {/* Paginated Submissions Table */}
+      <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border text-xs text-muted-foreground">
           <span>
-            Showing <strong>{submissions.length}</strong> of <strong>{totalCount}</strong> submissions
-            {statusFilter !== "ALL" && ` (Filter: ${statusFilter})`}
+            Total Submissions: <strong>{totalCount}</strong>
+            {statusFilter !== "ALL" && ` (Filtered by ${statusFilter})`}
           </span>
           <span>Page {currentPage} of {totalPages}</span>
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-xs text-muted-foreground bg-card rounded-xl border border-border">
-            Loading submissions from server...
+          <div className="p-6 space-y-3">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
           </div>
         ) : submissions.length === 0 ? (
-          <div className="p-10 text-center space-y-2 bg-card rounded-xl border border-dashed border-border">
-            <Clock className="h-8 w-8 text-muted-foreground mx-auto" />
-            <h4 className="text-sm font-semibold">No Submissions Found</h4>
+          <div className="p-10 text-center space-y-2">
+            <HelpCircle className="h-8 w-8 text-muted-foreground mx-auto" />
+            <h4 className="text-sm font-semibold text-foreground">No Submissions Found</h4>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              No project submissions match your current server filter criteria.
+              There are no submissions matching your search query or server filter.
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {submissions.map((sub) => {
-              const submitDate = new Date(sub.createdAt).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Student</TableHead>
+                <TableHead>Project Details</TableHead>
+                <TableHead>Links</TableHead>
+                <TableHead>Submitted At</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {submissions.map((sub) => {
+                const dateStr = new Date(sub.createdAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
 
-              return (
-                <div
-                  key={sub.id}
-                  className="rounded-xl border border-border bg-card p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs hover:border-primary/30 transition-all"
-                >
-                  {/* Left Column: Student info and project details */}
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="size-6 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center">
-                        {sub.studentName.slice(0, 2).toUpperCase()}
+                return (
+                  <TableRow key={sub.id}>
+                    {/* Student Info */}
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        <span className="font-semibold block text-foreground">
+                          {sub.studentName}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground block">
+                          {sub.studentEmail}
+                        </span>
                       </div>
-                      <span className="font-semibold text-sm text-foreground">
-                        {sub.studentName}
-                      </span>
-                      <span className="text-xs text-muted-foreground">({sub.studentEmail})</span>
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">{submitDate}</span>
-                      {renderStatusBadge(sub.status)}
-                    </div>
+                    </TableCell>
 
-                    <h4 className="font-bold text-base text-foreground truncate">
-                      {sub.projectName}
-                    </h4>
-
-                    <div className="flex flex-wrap items-center gap-3 pt-0.5">
-                      <SafeExternalLink url={sub.liveUrl} label="Live Project" type="live" />
-                      <SafeExternalLink url={sub.githubUrl} label="GitHub Repo" type="github" />
-                    </div>
-
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                      {sub.description}
-                    </p>
-
-                    {sub.mentorFeedback && (
-                      <div className="text-xs text-foreground/90 italic bg-muted/30 p-2 rounded border border-border">
-                        <strong>Mentor Note ({sub.reviewedBy || "Evaluator"}):</strong> &ldquo;{sub.mentorFeedback}&rdquo;
+                    {/* Project Name & Description */}
+                    <TableCell className="max-w-xs">
+                      <div className="space-y-1">
+                        <span className="font-bold text-foreground block truncate">
+                          {sub.projectName}
+                        </span>
+                        <p className="text-[11px] text-muted-foreground line-clamp-1">
+                          {sub.description}
+                        </p>
+                        {sub.mentorFeedback && (
+                          <div className="text-[10px] text-primary italic bg-primary/5 p-1 rounded border border-primary/20">
+                            Note: &ldquo;{sub.mentorFeedback}&rdquo;
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </TableCell>
 
-                  {/* Right Column: Approve / Reject Action Buttons */}
-                  <div className="flex sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-2 border-t lg:border-t-0 pt-3 lg:pt-0 border-border shrink-0">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setActionTarget({ submission: sub, type: "REJECTED" })
-                          setReviewNote("")
-                        }}
-                        className="text-xs gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                        Reject
-                      </Button>
+                    {/* Repository and Live URLs */}
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <SafeExternalLink url={sub.liveUrl} label="Live URL" type="live" showCopy={false} />
+                        <SafeExternalLink url={sub.githubUrl} label="GitHub" type="github" showCopy={false} />
+                      </div>
+                    </TableCell>
 
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setActionTarget({ submission: sub, type: "APPROVED" })
-                          setReviewNote("")
-                        }}
-                        className="text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        Approve
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                    {/* Submission Date */}
+                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                      {dateStr}
+                    </TableCell>
+
+                    {/* Status Badge */}
+                    <TableCell>{renderStatusBadge(sub.status)}</TableCell>
+
+                    {/* Action Buttons */}
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setActionTarget({ submission: sub, type: "REJECTED" })
+                            setReviewNote("")
+                          }}
+                          className="text-xs h-7 gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                        >
+                          <X className="h-3 w-3" />
+                          Reject
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setActionTarget({ submission: sub, type: "APPROVED" })
+                            setReviewNote("")
+                          }}
+                          className="text-xs h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <Check className="h-3 w-3" />
+                          Approve
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         )}
 
-        {/* Pagination Navigation */}
+        {/* Server-Side Pagination Controls */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border pt-4 px-1">
+          <div className="flex items-center justify-between border-t border-border p-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1 || isLoading}
-              className="text-xs gap-1"
+              className="text-xs gap-1 h-8"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               Previous
             </Button>
 
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
               {Array.from({ length: totalPages }).map((_, idx) => {
                 const pageNum = idx + 1
                 return (
@@ -435,7 +467,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
               size="sm"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages || isLoading}
-              className="text-xs gap-1"
+              className="text-xs gap-1 h-8"
             >
               Next
               <ChevronRight className="h-3.5 w-3.5" />
@@ -444,7 +476,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
         )}
       </div>
 
-      {/* Modal for Approve or Reject Feedback */}
+      {/* Confirmation Dialog Before Approving or Rejecting */}
       {actionTarget && (
         <Dialog open={!!actionTarget} onOpenChange={() => setActionTarget(null)}>
           <DialogContent className="max-w-md">
@@ -455,23 +487,23 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
                 ) : (
                   <XCircle className="h-4 w-4 text-destructive" />
                 )}
-                {actionTarget.type === "APPROVED" ? "Approve Submission" : "Reject Submission"}
+                Confirm {actionTarget.type === "APPROVED" ? "Approval" : "Rejection"}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {actionTarget.submission.projectName} • Submitted by {actionTarget.submission.studentName}
+                Are you sure you want to {actionTarget.type.toLowerCase()} <strong>{actionTarget.submission.projectName}</strong> submitted by {actionTarget.submission.studentName}?
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
               <label className="block text-xs font-semibold">
-                Mentor Feedback / Instructions for Student{" "}
+                Mentor Feedback & Instructions for Student{" "}
                 {actionTarget.type === "REJECTED" && <span className="text-destructive">*</span>}
               </label>
               <Textarea
                 placeholder={
                   actionTarget.type === "APPROVED"
-                    ? "Great work on this project! (Optional remarks)..."
-                    : "Explain specifically what needs to be fixed or updated..."
+                    ? "Great execution on this project! (Optional remarks)..."
+                    : "Specify the required revisions (e.g. fix live 404 reload, add README credentials)..."
                 }
                 value={reviewNote}
                 onChange={(e) => setReviewNote(e.target.value)}
@@ -499,7 +531,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
                 }
               >
                 {isActionLoading
-                  ? "Saving..."
+                  ? "Processing..."
                   : actionTarget.type === "APPROVED"
                     ? "Confirm Approval"
                     : "Confirm Rejection"}

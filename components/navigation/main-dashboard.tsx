@@ -28,7 +28,7 @@ export function MainDashboard() {
       <AppHeader />
 
       {/* Mode notification banner */}
-      <div className="border-b border-border bg-muted/40 text-xs py-2 px-4 text-center">
+      <div className="border-b border-border/80 bg-white/70 text-xs py-2.5 px-4 text-center dark:bg-card/70">
         <div className="container mx-auto flex items-center justify-center gap-2 max-w-7xl">
           {apiMode === "live" ? (
             <span className="text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1.5">
@@ -45,7 +45,7 @@ export function MainDashboard() {
       </div>
 
       {/* Main Content Area */}
-      <main className="container mx-auto flex-1 px-4 sm:px-6 py-6 sm:py-8 max-w-7xl">
+      <main className="container mx-auto flex-1 px-4 py-7 sm:px-6 sm:py-9 max-w-[1440px]">
         {!isAuthenticated || !user ? (
           <AuthCard />
         ) : user.role === "STUDENT" ? (
@@ -56,7 +56,7 @@ export function MainDashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card/40 py-6 mt-12 text-xs text-muted-foreground">
+      <footer className="border-t border-border/80 bg-white/60 py-5 mt-12 text-xs text-muted-foreground dark:bg-card/40">
         <div className="container mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl">
           <div className="flex items-center gap-2">
             <GraduationCap className="h-4 w-4 text-primary" />

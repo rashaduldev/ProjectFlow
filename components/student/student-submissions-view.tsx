@@ -7,7 +7,9 @@ import { Submission, SubmissionStatus } from "@/types/api"
 import { ProjectSubmissionForm } from "./project-submission-form"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SafeExternalLink } from "@/components/dashboard/shared/safe-external-link"
 import {
   Clock,
@@ -17,6 +19,9 @@ import {
   FolderGit2,
   AlertCircle,
   MessageSquare,
+  GraduationCap,
+  Layers,
+  Sparkles,
 } from "lucide-react"
 
 function StatusPill({ status }: { status: SubmissionStatus }) {
@@ -93,39 +98,91 @@ export function StudentSubmissionsView() {
     setSubmissions((prev) => [newSub, ...prev])
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="rounded-xl border border-border bg-linear-to-r from-primary/10 via-card to-card p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold tracking-tight text-foreground">
-                Welcome, {user?.name || "Student"}! 🎓
-              </h2>
-              <Badge variant="outline" className="text-[10px]">
-                Student View
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-              Submit your project repository and live URL for mentor review. Monitor your status in real time.
-            </p>
-          </div>
+  // Student Submission Overview Metrics
+  const totalCount = submissions.length
+  const pendingCount = submissions.filter((s) => s.status === "PENDING").length
+  const approvedCount = submissions.filter((s) => s.status === "APPROVED").length
+  const rejectedCount = submissions.filter((s) => s.status === "REJECTED").length
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleManualRefresh}
-            disabled={isLoading}
-            className="text-xs gap-1.5 self-start sm:self-center"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh Statuses
-          </Button>
+  return (
+    <div className="mx-auto max-w-6xl space-y-7">
+      {/* Welcome Header */}
+      <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-foreground">
+              Welcome, {user?.name || "Student"}
+            </h1>
+            <Badge variant="outline" className="text-[10px] gap-1 py-0">
+              <GraduationCap className="h-3 w-3 text-primary" />
+              Student View
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xl leading-6">
+            Submit your project repository and live deployment URL for mentor evaluation. Monitor feedback and review statuses in real time.
+          </p>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleManualRefresh}
+          disabled={isLoading}
+          className="text-xs gap-1.5 self-start sm:self-center h-8"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh Statuses
+        </Button>
       </div>
 
-      {/* Submission Form */}
+      {/* Submission Overview Cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card className="p-4 border-border shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">Total Projects</span>
+            <Layers className="h-4 w-4 text-primary" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">{isLoading ? "..." : totalCount}</span>
+            <span className="text-xs text-muted-foreground">submitted</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-amber-500/5 border-amber-500/20 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">Pending Review</span>
+            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-amber-700 dark:text-amber-400">{isLoading ? "..." : pendingCount}</span>
+            <span className="text-xs text-amber-600/80 dark:text-amber-400/80">awaiting</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-emerald-500/5 border-emerald-500/20 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Approved</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{isLoading ? "..." : approvedCount}</span>
+            <span className="text-xs text-emerald-600/80 dark:text-emerald-400/80">passed</span>
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-destructive/5 border-destructive/20 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-destructive">Rejected</span>
+            <XCircle className="h-4 w-4 text-destructive" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-destructive">{isLoading ? "..." : rejectedCount}</span>
+            <span className="text-xs text-destructive/80">needs fix</span>
+          </div>
+        </Card>
+      </div>
+
+      {/* New Project Submission Form (React Hook Form + Zod) */}
       <ProjectSubmissionForm
         existingSubmissions={submissions}
         onSubmissionSuccess={handleNewSubmission}
@@ -143,24 +200,25 @@ export function StudentSubmissionsView() {
       {/* My Submissions List */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-base font-semibold text-foreground">
-            Your Submissions ({submissions.length})
-          </h3>
+          <h2 className="text-base font-bold text-foreground">
+            My Submissions ({submissions.length})
+          </h2>
           <span className="text-xs text-muted-foreground">
-            Statuses: Pending, Approved, or Rejected
+            Track evaluation outcomes
           </span>
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-muted-foreground bg-card rounded-xl border border-border">
-            Loading your project submissions...
+          <div className="space-y-3">
+            <Skeleton className="h-28 w-full rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
           </div>
         ) : submissions.length === 0 ? (
-          <div className="p-8 text-center space-y-2 bg-card rounded-xl border border-dashed border-border">
+          <div className="p-10 text-center space-y-2 bg-card rounded-xl border border-dashed border-border">
             <FolderGit2 className="h-8 w-8 text-muted-foreground mx-auto" />
             <h4 className="text-sm font-semibold">No Submissions Yet</h4>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Use the form above to submit your first project for mentor evaluation.
+              Use the form above to submit your project for mentor evaluation.
             </p>
           </div>
         ) : (
@@ -182,9 +240,9 @@ export function StudentSubmissionsView() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-base text-foreground">
+                        <h3 className="font-bold text-base text-foreground">
                           {sub.projectName}
-                        </h4>
+                        </h3>
                         <StatusPill status={sub.status} />
                       </div>
                       <span className="text-[11px] text-muted-foreground">
@@ -227,4 +285,3 @@ export function StudentSubmissionsView() {
     </div>
   )
 }
-

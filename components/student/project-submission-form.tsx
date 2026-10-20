@@ -1,17 +1,26 @@
 "use client"
 
 import * as React from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useAuth } from "@/context/auth-context"
 import { api, ApiConnectionError, ApiHttpError } from "@/lib/api/client"
 import { Submission } from "@/types/api"
-import { validateSafeUrl } from "@/lib/url-validator"
+import { SubmissionFormValues, submissionSchema } from "@/lib/validations/schemas"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { GithubIcon } from "@/components/ui/icons"
-import { Globe, FileText, Send, CheckCircle2, AlertTriangle, ShieldAlert } from "lucide-react"
+import {
+  Globe,
+  FileText,
+  Send,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldAlert,
+} from "lucide-react"
 
 interface ProjectSubmissionFormProps {
   existingSubmissions: Submission[]
@@ -23,25 +32,35 @@ export function ProjectSubmissionForm({
   onSubmissionSuccess,
 }: ProjectSubmissionFormProps) {
   const { user } = useAuth()
-
-  // 4 required fields
-  const [projectName, setProjectName] = React.useState("")
-  const [githubUrl, setGithubUrl] = React.useState("")
-  const [liveUrl, setLiveUrl] = React.useState("")
-  const [description, setDescription] = React.useState("")
-
-  // Form state
-  const [errors, setErrors] = React.useState<Record<string, string>>({})
   const [apiError, setApiError] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<SubmissionFormValues>({
+    resolver: zodResolver(submissionSchema),
+    defaultValues: {
+      projectName: "",
+      githubUrl: "",
+      liveUrl: "",
+      description: "",
+    },
+  })
+
+  const watchedProjectName = watch("projectName")
+  const watchedGithubUrl = watch("githubUrl")
+
   // Real-time client-side duplicate check
   const duplicateWarning = React.useMemo(() => {
-    if (!projectName.trim() && !githubUrl.trim()) return null
+    if (!watchedProjectName?.trim() && !watchedGithubUrl?.trim()) return null
 
-    const pName = projectName.trim().toLowerCase()
-    const gUrl = githubUrl.trim().toLowerCase()
+    const pName = watchedProjectName?.trim().toLowerCase()
+    const gUrl = watchedGithubUrl?.trim().toLowerCase()
 
     const found = existingSubmissions.find(
       (s) =>
@@ -50,54 +69,22 @@ export function ProjectSubmissionForm({
     )
 
     if (found) {
-      return `Duplicate warning: You already have a pending submission for "${found.projectName}". Submitting another duplicate is prevented.`
+      return `Duplicate warning: You already have a pending submission for "${found.projectName}". Submitting duplicate pending entries is blocked.`
     }
     return null
-  }, [projectName, githubUrl, existingSubmissions])
+  }, [watchedProjectName, watchedGithubUrl, existingSubmissions])
 
-  const validate = () => {
-    const errs: Record<string, string> = {}
-
-    if (!projectName.trim()) {
-      errs.projectName = "Project name is required."
-    } else if (projectName.trim().length < 3) {
-      errs.projectName = "Project name must be at least 3 characters."
-    }
-
-    const githubValidation = validateSafeUrl(githubUrl, { requireGitHub: true })
-    if (!githubValidation.isValid) {
-      errs.githubUrl = githubValidation.error || "Please enter a valid GitHub repository URL."
-    }
-
-    const liveValidation = validateSafeUrl(liveUrl)
-    if (!liveValidation.isValid) {
-      errs.liveUrl = liveValidation.error || "Please enter a valid live deployment URL."
-    }
-
-    if (!description.trim()) {
-      errs.description = "Project description is required."
-    } else if (description.trim().length < 15) {
-      errs.description = "Please provide a descriptive overview (at least 15 characters)."
-    }
-
-    setErrors(errs)
-    return Object.keys(errs).length === 0
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: SubmissionFormValues) => {
     setApiError(null)
     setSuccessMessage(null)
 
-    // Check UI duplicate prevention
     if (duplicateWarning) {
       setApiError(duplicateWarning)
       return
     }
 
-    if (!validate()) return
     if (!user) {
-      setApiError("You must be logged in as a student to submit a project.")
+      setApiError("You must be signed in as a student to submit a project.")
       return
     }
 
@@ -106,20 +93,16 @@ export function ProjectSubmissionForm({
     try {
       const created = await api.submissions.create(
         {
-          projectName: projectName.trim(),
-          githubUrl: githubUrl.trim(),
-          liveUrl: liveUrl.trim(),
-          description: description.trim(),
+          projectName: data.projectName.trim(),
+          githubUrl: data.githubUrl.trim(),
+          liveUrl: data.liveUrl.trim(),
+          description: data.description.trim(),
         },
         user
       )
 
-      setSuccessMessage(`Project "${created.projectName}" submitted successfully for mentor review!`)
-      setProjectName("")
-      setGithubUrl("")
-      setLiveUrl("")
-      setDescription("")
-      setErrors({})
+      setSuccessMessage(`Project "${created.projectName}" was submitted successfully for mentor review.`)
+      reset()
       onSubmissionSuccess(created)
       setTimeout(() => setSuccessMessage(null), 5000)
     } catch (err: unknown) {
@@ -175,7 +158,7 @@ export function ProjectSubmissionForm({
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
           {/* 1. Project Name */}
           <div>
             <label className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
@@ -185,9 +168,8 @@ export function ProjectSubmissionForm({
             <Input
               type="text"
               placeholder="e.g. CareerHub Job Portal"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              error={errors.projectName}
+              {...register("projectName")}
+              error={errors.projectName?.message}
               disabled={isSubmitting}
             />
           </div>
@@ -202,9 +184,8 @@ export function ProjectSubmissionForm({
               <Input
                 type="url"
                 placeholder="https://github.com/username/project"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                error={errors.githubUrl}
+                {...register("githubUrl")}
+                error={errors.githubUrl?.message}
                 disabled={isSubmitting}
               />
             </div>
@@ -217,9 +198,8 @@ export function ProjectSubmissionForm({
               <Input
                 type="url"
                 placeholder="https://my-app.vercel.app"
-                value={liveUrl}
-                onChange={(e) => setLiveUrl(e.target.value)}
-                error={errors.liveUrl}
+                {...register("liveUrl")}
+                error={errors.liveUrl?.message}
                 disabled={isSubmitting}
               />
             </div>
@@ -231,10 +211,9 @@ export function ProjectSubmissionForm({
               Project Description <span className="text-destructive">*</span>
             </label>
             <Textarea
-              placeholder="Describe the core features, technologies used, and test credentials (if any)..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              error={errors.description}
+              placeholder="Describe core features, tech stack, and test credentials (at least 15 characters)..."
+              {...register("description")}
+              error={errors.description?.message}
               rows={3}
               disabled={isSubmitting}
             />
@@ -242,7 +221,7 @@ export function ProjectSubmissionForm({
 
           <div className="flex items-center justify-between pt-1">
             <span className="text-[11px] text-muted-foreground">
-              {isSubmitting ? "Submitting securely..." : "All 4 fields are required."}
+              {isSubmitting ? "Validating & submitting..." : "All 4 fields are validated with Zod."}
             </span>
             <Button
               type="submit"

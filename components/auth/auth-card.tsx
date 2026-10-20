@@ -1,83 +1,70 @@
 "use client"
 
 import * as React from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useAuth } from "@/context/auth-context"
+import {
+  LoginFormValues,
+  RegisterFormValues,
+  loginSchema,
+  registerSchema,
+} from "@/lib/validations/schemas"
 import { UserRole } from "@/types/api"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { GraduationCap, ShieldCheck, LogIn, UserPlus, AlertCircle, Sparkles } from "lucide-react"
+import {
+  GraduationCap,
+  ShieldCheck,
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  Sparkles,
+} from "lucide-react"
 
 export function AuthCard() {
   const { login, register, authError, clearAuthError, quickLoginDemo, isLoading, apiMode } = useAuth()
-
   const [tab, setTab] = React.useState<"login" | "register">("login")
 
-  // Login form
-  const [loginEmail, setLoginEmail] = React.useState("")
-  const [loginPassword, setLoginPassword] = React.useState("")
+  // React Hook Form for Login with Zod
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  })
 
-  // Register form
-  const [regName, setRegName] = React.useState("")
-  const [regEmail, setRegEmail] = React.useState("")
-  const [regPassword, setRegPassword] = React.useState("")
-  const [regRole, setRegRole] = React.useState<UserRole>("STUDENT")
-
-  // Form field errors
-  const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
+  // React Hook Form for Register with Zod
+  const registerForm = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      role: "STUDENT",
+    },
+  })
 
   const handleTabChange = (newTab: string) => {
     setTab(newTab as "login" | "register")
     clearAuthError()
-    setFormErrors({})
+    loginForm.clearErrors()
+    registerForm.clearErrors()
   }
 
-  const validateLogin = () => {
-    const errors: Record<string, string> = {}
-    if (!loginEmail.trim()) {
-      errors.loginEmail = "Email is required."
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.trim())) {
-      errors.loginEmail = "Enter a valid email address."
-    }
-    if (!loginPassword) {
-      errors.loginPassword = "Password is required."
-    }
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
+  const onLoginSubmit = async (data: LoginFormValues) => {
+    await login(data.email.trim(), data.password)
   }
 
-  const validateRegister = () => {
-    const errors: Record<string, string> = {}
-    if (!regName.trim()) {
-      errors.regName = "Full name is required."
-    }
-    if (!regEmail.trim()) {
-      errors.regEmail = "Email is required."
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail.trim())) {
-      errors.regEmail = "Enter a valid email address."
-    }
-    if (!regPassword) {
-      errors.regPassword = "Password is required."
-    } else if (regPassword.length < 6) {
-      errors.regPassword = "Password must be at least 6 characters."
-    }
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
+  const onRegisterSubmit = async (data: RegisterFormValues) => {
+    await register(data.name.trim(), data.email.trim(), data.password, data.role)
   }
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validateLogin()) return
-    await login(loginEmail.trim(), loginPassword)
-  }
-
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validateRegister()) return
-    await register(regName.trim(), regEmail.trim(), regPassword, regRole)
-  }
+  const currentRole = registerForm.watch("role")
 
   return (
     <div className="w-full max-w-md mx-auto my-8">
@@ -99,7 +86,7 @@ export function AuthCard() {
           {authError && (
             <Alert variant="destructive" className="py-2.5">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle className="text-xs font-semibold">Authentication Error</AlertTitle>
+              <AlertTitle className="text-xs font-semibold">Authentication Notice</AlertTitle>
               <AlertDescription className="text-xs mt-0.5">{authError}</AlertDescription>
             </Alert>
           )}
@@ -118,15 +105,14 @@ export function AuthCard() {
 
             {/* Login Tab */}
             <TabsContent value="login">
-              <form onSubmit={handleLoginSubmit} className="space-y-3 pt-2">
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-3 pt-2">
                 <div>
                   <label className="block text-xs font-semibold mb-1">Email Address</label>
                   <Input
                     type="email"
                     placeholder="student@example.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    error={formErrors.loginEmail}
+                    {...loginForm.register("email")}
+                    error={loginForm.formState.errors.email?.message}
                     disabled={isLoading}
                   />
                 </div>
@@ -136,9 +122,8 @@ export function AuthCard() {
                   <Input
                     type="password"
                     placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    error={formErrors.loginPassword}
+                    {...loginForm.register("password")}
+                    error={loginForm.formState.errors.password?.message}
                     disabled={isLoading}
                   />
                 </div>
@@ -151,15 +136,14 @@ export function AuthCard() {
 
             {/* Register Tab */}
             <TabsContent value="register">
-              <form onSubmit={handleRegisterSubmit} className="space-y-3 pt-2">
+              <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-3 pt-2">
                 <div>
                   <label className="block text-xs font-semibold mb-1">Full Name</label>
                   <Input
                     type="text"
                     placeholder="Tanvir Ahmed"
-                    value={regName}
-                    onChange={(e) => setRegName(e.target.value)}
-                    error={formErrors.regName}
+                    {...registerForm.register("name")}
+                    error={registerForm.formState.errors.name?.message}
                     disabled={isLoading}
                   />
                 </div>
@@ -169,9 +153,8 @@ export function AuthCard() {
                   <Input
                     type="email"
                     placeholder="tanvir@example.com"
-                    value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
-                    error={formErrors.regEmail}
+                    {...registerForm.register("email")}
+                    error={registerForm.formState.errors.email?.message}
                     disabled={isLoading}
                   />
                 </div>
@@ -181,9 +164,8 @@ export function AuthCard() {
                   <Input
                     type="password"
                     placeholder="Minimum 6 characters"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    error={formErrors.regPassword}
+                    {...registerForm.register("password")}
+                    error={registerForm.formState.errors.password?.message}
                     disabled={isLoading}
                   />
                 </div>
@@ -193,9 +175,9 @@ export function AuthCard() {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setRegRole("STUDENT")}
+                      onClick={() => registerForm.setValue("role", "STUDENT")}
                       className={`flex items-center justify-center gap-1.5 p-2 rounded-lg border text-xs font-medium transition-colors ${
-                        regRole === "STUDENT"
+                        currentRole === "STUDENT"
                           ? "border-primary bg-primary/10 text-primary font-semibold"
                           : "border-border hover:bg-muted text-muted-foreground"
                       }`}
@@ -206,9 +188,9 @@ export function AuthCard() {
 
                     <button
                       type="button"
-                      onClick={() => setRegRole("MENTOR")}
+                      onClick={() => registerForm.setValue("role", "MENTOR")}
                       className={`flex items-center justify-center gap-1.5 p-2 rounded-lg border text-xs font-medium transition-colors ${
-                        regRole === "MENTOR"
+                        currentRole === "MENTOR"
                           ? "border-primary bg-primary/10 text-primary font-semibold"
                           : "border-border hover:bg-muted text-muted-foreground"
                       }`}
@@ -258,7 +240,7 @@ export function AuthCard() {
             </div>
             {apiMode === "live" && (
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                Live API Mode: Ensure Express backend runs on <code>http://localhost:5000/api</code>
+                Live API Mode: Connecting to Express backend at <code>http://localhost:5000/api</code>
               </p>
             )}
           </div>
@@ -267,4 +249,3 @@ export function AuthCard() {
     </div>
   )
 }
-

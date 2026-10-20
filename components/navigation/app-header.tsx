@@ -33,7 +33,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 max-w-7xl">
+      <div className="container mx-auto flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6 max-w-[1440px]">
         {/* Brand & Assessment Title */}
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-xs">
@@ -56,7 +56,7 @@ export function AppHeader() {
 
         {/* Center: Live API vs Mock Mode Selector */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-muted/80 p-0.5 rounded-lg border border-border text-xs">
+          <div className="hidden sm:flex items-center bg-muted/80 p-0.5 rounded-lg border border-border text-xs">
             <button
               type="button"
               onClick={() => setApiMode("mock")}

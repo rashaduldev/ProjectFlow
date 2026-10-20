@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useAuth } from "@/context/auth-context"
@@ -18,30 +19,27 @@ import {
   FileText,
   Send,
   CheckCircle2,
-  AlertTriangle,
   ShieldAlert,
 } from "lucide-react"
 
 interface ProjectSubmissionFormProps {
-  existingSubmissions: Submission[]
   onSubmissionSuccess: (newSubmission: Submission) => void
 }
 
 export function ProjectSubmissionForm({
-  existingSubmissions,
   onSubmissionSuccess,
 }: ProjectSubmissionFormProps) {
   const { user } = useAuth()
   const [apiError, setApiError] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const submitLock = React.useRef(false)
 
   const {
     register,
     handleSubmit,
-    watch,
     reset,
-    formState: { errors },
+    setError,
+    formState: { errors, isSubmitting },
   } = useForm<SubmissionFormValues>({
     resolver: zodResolver(submissionSchema),
     defaultValues: {
@@ -52,43 +50,17 @@ export function ProjectSubmissionForm({
     },
   })
 
-  const watchedProjectName = watch("projectName")
-  const watchedGithubUrl = watch("githubUrl")
-
-  // Real-time client-side duplicate check
-  const duplicateWarning = React.useMemo(() => {
-    if (!watchedProjectName?.trim() && !watchedGithubUrl?.trim()) return null
-
-    const pName = watchedProjectName?.trim().toLowerCase()
-    const gUrl = watchedGithubUrl?.trim().toLowerCase()
-
-    const found = existingSubmissions.find(
-      (s) =>
-        s.status === "PENDING" &&
-        (s.projectName.toLowerCase() === pName || (gUrl && s.githubUrl.toLowerCase() === gUrl))
-    )
-
-    if (found) {
-      return `Duplicate warning: You already have a pending submission for "${found.projectName}". Submitting duplicate pending entries is blocked.`
-    }
-    return null
-  }, [watchedProjectName, watchedGithubUrl, existingSubmissions])
-
   const onSubmit = async (data: SubmissionFormValues) => {
+    if (submitLock.current) return
+    submitLock.current = true
     setApiError(null)
     setSuccessMessage(null)
 
-    if (duplicateWarning) {
-      setApiError(duplicateWarning)
-      return
-    }
-
     if (!user) {
       setApiError("You must be signed in as a student to submit a project.")
+      submitLock.current = false
       return
     }
-
-    setIsSubmitting(true)
 
     try {
       const created = await api.submissions.create(
@@ -106,15 +78,31 @@ export function ProjectSubmissionForm({
       onSubmissionSuccess(created)
       setTimeout(() => setSuccessMessage(null), 5000)
     } catch (err: unknown) {
-      if (err instanceof ApiConnectionError || err instanceof ApiHttpError) {
+      if (err instanceof ApiHttpError) {
+        const fieldNames = ["projectName", "githubUrl", "liveUrl", "description"] as const
+        for (const field of fieldNames) {
+          const message = err.errors?.[field]?.[0]
+          if (message) setError(field, { type: "server", message })
+        }
+        if (err.statusCode === 409) {
+          setApiError(`This submission conflicts with an existing pending submission. ${err.message}`)
+        } else if (err.statusCode === 401) {
+          setApiError("Your session has expired. Sign in again before submitting.")
+        } else {
+          const fieldMessages = err.errors ? Object.values(err.errors).flat().join(" ") : ""
+          setApiError(fieldMessages ? `${err.message} ${fieldMessages}` : err.message)
+        }
+      } else if (err instanceof ApiConnectionError) {
         setApiError(err.message)
       } else if (err instanceof Error) {
-        setApiError(err.message)
+        setApiError(/duplicate|409/i.test(err.message)
+          ? `This submission conflicts with an existing pending submission. ${err.message}`
+          : err.message)
       } else {
         setApiError("Failed to submit project.")
       }
     } finally {
-      setIsSubmitting(false)
+      submitLock.current = false
     }
   }
 
@@ -126,7 +114,7 @@ export function ProjectSubmissionForm({
           Submit a Project for Mentor Review
         </CardTitle>
         <CardDescription className="text-xs">
-          Provide your project repository and live URL. Duplicate submissions are automatically protected.
+          Provide your repository and live URL. The server checks for conflicts and confirms successful submissions.
         </CardDescription>
       </CardHeader>
 
@@ -140,15 +128,6 @@ export function ProjectSubmissionForm({
           </Alert>
         )}
 
-        {/* Duplicate Warning Alert */}
-        {duplicateWarning && (
-          <Alert variant="warning" className="py-2.5">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle className="text-xs font-semibold">Duplicate Submission Blocked</AlertTitle>
-            <AlertDescription className="text-xs mt-0.5">{duplicateWarning}</AlertDescription>
-          </Alert>
-        )}
-
         {/* Success Alert */}
         {successMessage && (
           <Alert variant="success" className="py-2.5">
@@ -158,16 +137,18 @@ export function ProjectSubmissionForm({
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5" noValidate>
           {/* 1. Project Name */}
           <div>
-            <label className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
+            <label htmlFor="project-name" className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5 text-primary" />
               Project Name <span className="text-destructive">*</span>
             </label>
             <Input
+              id="project-name"
               type="text"
               placeholder="e.g. CareerHub Job Portal"
+              maxLength={80}
               {...register("projectName")}
               error={errors.projectName?.message}
               disabled={isSubmitting}
@@ -177,13 +158,15 @@ export function ProjectSubmissionForm({
           {/* 2 & 3. GitHub & Live URLs */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
+              <label htmlFor="github-url" className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
                 <GithubIcon className="h-3.5 w-3.5 text-primary" />
                 GitHub Repository URL <span className="text-destructive">*</span>
               </label>
               <Input
+                id="github-url"
                 type="url"
                 placeholder="https://github.com/username/project"
+                maxLength={2048}
                 {...register("githubUrl")}
                 error={errors.githubUrl?.message}
                 disabled={isSubmitting}
@@ -191,13 +174,15 @@ export function ProjectSubmissionForm({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
+              <label htmlFor="live-url" className="block text-xs font-semibold mb-1 flex items-center gap-1.5">
                 <Globe className="h-3.5 w-3.5 text-primary" />
                 Live Project URL <span className="text-destructive">*</span>
               </label>
               <Input
+                id="live-url"
                 type="url"
                 placeholder="https://my-app.vercel.app"
+                maxLength={2048}
                 {...register("liveUrl")}
                 error={errors.liveUrl?.message}
                 disabled={isSubmitting}
@@ -207,31 +192,36 @@ export function ProjectSubmissionForm({
 
           {/* 4. Project Description */}
           <div>
-            <label className="block text-xs font-semibold mb-1">
+            <label htmlFor="project-description" className="block text-xs font-semibold mb-1">
               Project Description <span className="text-destructive">*</span>
             </label>
             <Textarea
+              id="project-description"
               placeholder="Describe core features, tech stack, and test credentials (at least 15 characters)..."
               {...register("description")}
               error={errors.description?.message}
               rows={3}
+              maxLength={1000}
               disabled={isSubmitting}
             />
           </div>
 
           <div className="flex items-center justify-between pt-1">
             <span className="text-[11px] text-muted-foreground">
-              {isSubmitting ? "Validating & submitting..." : "All 4 fields are validated with Zod."}
+              {isSubmitting ? "Submitting your project…" : "All fields are required."}
             </span>
             <Button
               type="submit"
-              disabled={isSubmitting || !!duplicateWarning}
+              disabled={isSubmitting}
               className="text-xs gap-1.5"
             >
               <Send className="h-3.5 w-3.5" />
-              {isSubmitting ? "Submitting..." : "Submit Project"}
+              {isSubmitting ? "Submitting…" : "Submit Project"}
             </Button>
           </div>
+          {apiError && apiError.includes("session has expired") && (
+            <p className="text-right text-xs"><Link href="/login" className="font-medium text-primary underline underline-offset-4">Go to sign in</Link></p>
+          )}
         </form>
       </CardContent>
     </Card>

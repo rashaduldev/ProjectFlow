@@ -3,6 +3,7 @@
 import * as React from "react"
 import { SubmissionStats } from "@/types/api"
 import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Clock, CheckCircle2, XCircle, Layers } from "lucide-react"
 
 interface MentorStatsCardsProps {
@@ -28,7 +29,7 @@ export function MentorStatsCards({ stats, isLoading }: MentorStatsCardsProps) {
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-            {isLoading ? "..." : pending}
+            {isLoading ? <Skeleton className="h-8 w-12" /> : pending}
           </span>
           <span className="text-xs text-amber-600/80 dark:text-amber-400/80">
             awaiting review
@@ -46,7 +47,7 @@ export function MentorStatsCards({ stats, isLoading }: MentorStatsCardsProps) {
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-            {isLoading ? "..." : approved}
+            {isLoading ? <Skeleton className="h-8 w-12" /> : approved}
           </span>
           <span className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
             passed
@@ -64,7 +65,7 @@ export function MentorStatsCards({ stats, isLoading }: MentorStatsCardsProps) {
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="text-2xl font-bold text-destructive">
-            {isLoading ? "..." : rejected}
+            {isLoading ? <Skeleton className="h-8 w-12" /> : rejected}
           </span>
           <span className="text-xs text-destructive/80">
             revision requested
@@ -82,7 +83,7 @@ export function MentorStatsCards({ stats, isLoading }: MentorStatsCardsProps) {
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="text-2xl font-bold text-foreground">
-            {isLoading ? "..." : total}
+            {isLoading ? <Skeleton className="h-8 w-12" /> : total}
           </span>
           <span className="text-xs text-muted-foreground">
             across all batches

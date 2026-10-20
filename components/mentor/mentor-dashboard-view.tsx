@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useAuth } from "@/context/auth-context"
-import { api, ApiConnectionError, ApiHttpError } from "@/lib/api/client"
+import { api } from "@/lib/api/client"
 import { SubmissionStats } from "@/types/api"
 import { MentorSidebar } from "./mentor-sidebar"
 import { MentorStatsCards } from "./mentor-stats-cards"
@@ -10,58 +11,30 @@ import { MentorSubmissionsTable } from "./mentor-submissions-table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   ShieldCheck,
   ShieldAlert,
   RefreshCw,
-  CheckCircle2,
   BookOpen,
   Award,
   Layers,
 } from "lucide-react"
 
 export function MentorDashboardView() {
-  const { user, quickLoginDemo } = useAuth()
+  const { user, quickLoginDemo, apiMode } = useAuth()
 
   const [activeView, setActiveView] = React.useState<"queue" | "stats" | "policy">("queue")
-  const [stats, setStats] = React.useState<SubmissionStats | null>(null)
-  const [isStatsLoading, setIsStatsLoading] = React.useState(true)
-  const [statsError, setStatsError] = React.useState<string | null>(null)
-  const [refreshTrigger, setRefreshTrigger] = React.useState(0)
-
-  React.useEffect(() => {
-    if (user?.role !== "MENTOR") return
-    let isMounted = true
-
-    api.submissions
-      .getStats()
-      .then((data) => {
-        if (isMounted) {
-          setStats(data)
-          setIsStatsLoading(false)
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err instanceof ApiConnectionError || err instanceof ApiHttpError || err instanceof Error
-              ? err.message
-              : "Failed to load aggregated statistics."
-          setStatsError(msg)
-          setIsStatsLoading(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [user, refreshTrigger])
-
+  const statsQuery = useQuery({
+    queryKey: ["mentor-stats", apiMode, user?.id],
+    queryFn: () => api.submissions.getStats(),
+    enabled: user?.role === "MENTOR",
+  })
+  const stats: SubmissionStats | null = statsQuery.data ?? null
+  const isStatsLoading = statsQuery.isPending || statsQuery.isFetching
   const handleManualRefresh = React.useCallback(() => {
-    setIsStatsLoading(true)
-    setStatsError(null)
-    setRefreshTrigger((prev) => prev + 1)
-  }, [])
+    void statsQuery.refetch()
+  }, [statsQuery])
 
   // Role Protection Guard
   if (user?.role !== "MENTOR") {
@@ -131,10 +104,13 @@ export function MentorDashboardView() {
         </div>
 
         {/* Stats Error Notice */}
-        {statsError && (
+        {statsQuery.isError && (
           <Alert variant="destructive" className="py-2.5">
             <AlertTitle className="text-xs font-semibold">Statistics Error</AlertTitle>
-            <AlertDescription className="text-xs mt-0.5">{statsError}</AlertDescription>
+            <AlertDescription className="mt-0.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span>{statsQuery.error instanceof Error ? statsQuery.error.message : "Aggregated statistics could not be loaded."}</span>
+              <Button variant="outline" size="sm" onClick={handleManualRefresh} disabled={statsQuery.isFetching}>Try again</Button>
+            </AlertDescription>
           </Alert>
         )}
 
@@ -151,7 +127,9 @@ export function MentorDashboardView() {
 
         {/* View Selection: Queue / Statistics / Guidelines */}
         {activeView === "queue" && (
-          <MentorSubmissionsTable onDataChanged={handleManualRefresh} />
+          <React.Suspense fallback={<div className="space-y-3"><Skeleton className="h-20 w-full" /><Skeleton className="h-72 w-full" /></div>}>
+            <MentorSubmissionsTable />
+          </React.Suspense>
         )}
 
         {activeView === "stats" && (

@@ -31,18 +31,22 @@ export type RegisterFormValues = z.infer<typeof registerSchema>
 export const submissionSchema = z.object({
   projectName: z
     .string()
+    .trim()
     .min(3, "Project name must be at least 3 characters.")
     .max(80, "Project name cannot exceed 80 characters."),
   githubUrl: z
     .string()
+    .trim()
     .min(1, "GitHub repository URL is required.")
+    .max(2048, "GitHub URL cannot exceed 2,048 characters.")
     .url("Must be a valid URL (e.g., https://github.com/user/repo).")
     .refine((url) => {
       try {
         const parsed = new URL(url)
+        const hostname = parsed.hostname.toLowerCase()
         return (
           (parsed.protocol === "http:" || parsed.protocol === "https:") &&
-          parsed.hostname.toLowerCase().endsWith("github.com")
+          (hostname === "github.com" || hostname.endsWith(".github.com"))
         )
       } catch {
         return false
@@ -50,7 +54,9 @@ export const submissionSchema = z.object({
     }, "Must be a valid GitHub repository URL ending with github.com"),
   liveUrl: z
     .string()
+    .trim()
     .min(1, "Live project URL is required.")
+    .max(2048, "Live URL cannot exceed 2,048 characters.")
     .url("Must be a valid URL (e.g., https://my-app.vercel.app).")
     .refine((url) => {
       try {
@@ -62,6 +68,7 @@ export const submissionSchema = z.object({
     }, "Live URL must use http:// or https:// protocol"),
   description: z
     .string()
+    .trim()
     .min(15, "Please provide a descriptive summary of your project (at least 15 characters).")
     .max(1000, "Description cannot exceed 1000 characters."),
 })

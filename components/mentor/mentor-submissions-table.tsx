@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/context/auth-context"
 import { api, ApiConnectionError, ApiHttpError } from "@/lib/api/client"
 import { Submission, SubmissionStatus } from "@/types/api"
@@ -41,123 +43,116 @@ import {
   HelpCircle,
 } from "lucide-react"
 
-interface MentorSubmissionsTableProps {
-  onDataChanged: () => void
-}
-
-export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTableProps) {
-  const { user } = useAuth()
-
-  // Table state
-  const [submissions, setSubmissions] = React.useState<Submission[]>([])
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [totalPages, setTotalPages] = React.useState(1)
-  const [totalCount, setTotalCount] = React.useState(0)
+export function MentorSubmissionsTable() {
+  const { user, apiMode } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const queryClient = useQueryClient()
   const pageSize = 5
-
-  // Server-side filter state
-  const [statusFilter, setStatusFilter] = React.useState<"ALL" | SubmissionStatus>("ALL")
-  const [searchQuery, setSearchQuery] = React.useState("")
-
-  // Loading & feedback states
-  const [isLoading, setIsLoading] = React.useState(true)
+  const rawPage = Number(searchParams.get("page") || "1")
+  const currentPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1
+  const rawStatus = searchParams.get("status")
+  const statusFilter: "ALL" | SubmissionStatus =
+    rawStatus === "PENDING" || rawStatus === "APPROVED" || rawStatus === "REJECTED" ? rawStatus : "ALL"
+  const searchQuery = searchParams.get("search")?.trim() ?? ""
+  const [searchDraft, setSearchDraft] = React.useState(searchQuery)
   const [feedbackNotice, setFeedbackNotice] = React.useState<{
     type: "success" | "error"
     message: string
   } | null>(null)
-
-  // Confirmation dialog state before approving or rejecting
   const [actionTarget, setActionTarget] = React.useState<{
     submission: Submission
     type: "APPROVED" | "REJECTED"
   } | null>(null)
   const [reviewNote, setReviewNote] = React.useState("")
-  const [isActionLoading, setIsActionLoading] = React.useState(false)
-
-  const [refreshTrigger, setRefreshTrigger] = React.useState(0)
-
-  // Server-side fetch call
-  React.useEffect(() => {
-    let isMounted = true
-
-    api.submissions
-      .getAll({
-        page: currentPage,
-        limit: pageSize,
-        status: statusFilter,
-        search: searchQuery.trim() || undefined,
-      })
-      .then((response) => {
-        if (isMounted) {
-          setSubmissions(response.data)
-          setTotalPages(response.pagination.totalPages)
-          setTotalCount(response.pagination.total)
-          setIsLoading(false)
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err instanceof ApiConnectionError || err instanceof ApiHttpError || err instanceof Error
-              ? err.message
-              : "Failed to fetch submissions from server."
-          setFeedbackNotice({ type: "error", message: msg })
-          setIsLoading(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
+  const updateUrl = React.useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "") params.delete(key)
+      else params.set(key, value)
     }
-  }, [currentPage, statusFilter, searchQuery, pageSize, refreshTrigger])
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }, [pathname, router, searchParams])
 
-  const triggerRefresh = React.useCallback(() => {
-    setIsLoading(true)
+  React.useEffect(() => {
+    setSearchDraft(searchQuery)
+  }, [searchQuery])
+
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (searchDraft.trim() !== searchQuery) {
+        updateUrl({ search: searchDraft.trim() || null, page: null })
+      }
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [searchDraft, searchQuery, updateUrl])
+
+  const submissionsKey = ["mentor-submissions", apiMode, user?.id] as const
+  const submissionsQuery = useQuery({
+    queryKey: [...submissionsKey, currentPage, pageSize, statusFilter, searchQuery],
+    queryFn: () => api.submissions.getAll({
+      page: currentPage,
+      limit: pageSize,
+      status: statusFilter,
+      search: searchQuery || undefined,
+    }),
+    enabled: user?.role === "MENTOR",
+    placeholderData: keepPreviousData,
+  })
+  const submissions = submissionsQuery.data?.data ?? []
+  const totalPages = Math.max(1, submissionsQuery.data?.pagination.totalPages ?? 1)
+  const totalCount = submissionsQuery.data?.pagination.total ?? 0
+  const isLoading = submissionsQuery.isPending || submissionsQuery.isFetching
+
+  React.useEffect(() => {
+    if (submissionsQuery.data && currentPage > totalPages) {
+      updateUrl({ page: String(totalPages) })
+    }
+  }, [currentPage, submissionsQuery.data, totalPages, updateUrl])
+
+  const handleRefresh = () => {
     setFeedbackNotice(null)
-    setRefreshTrigger((prev) => prev + 1)
-  }, [])
-
-  // Reset page when filter changes
-  const handleFilterChange = (newStatus: "ALL" | SubmissionStatus) => {
-    setStatusFilter(newStatus)
-    setCurrentPage(1)
-    setIsLoading(true)
+    void submissionsQuery.refetch()
   }
 
-  // Handle Approve or Reject
-  const handleConfirmAction = async () => {
-    if (!actionTarget) return
+  const handleFilterChange = (newStatus: "ALL" | SubmissionStatus) => {
+    updateUrl({ status: newStatus === "ALL" ? null : newStatus, page: null })
+  }
 
-    setIsActionLoading(true)
-    setFeedbackNotice(null)
-
-    try {
-      const updated = await api.submissions.updateStatus(
-        actionTarget.submission.id,
-        {
-          status: actionTarget.type,
-          feedback: reviewNote.trim() || undefined,
-        },
-        user?.name || "Mentor"
-      )
-
+  const mutation = useMutation({
+    mutationFn: (input: { id: string; status: "APPROVED" | "REJECTED"; feedback?: string }) =>
+      api.submissions.updateStatus(input.id, { status: input.status, feedback: input.feedback }, user?.name || "Mentor"),
+    onSuccess: async (updated, variables) => {
       setFeedbackNotice({
         type: "success",
-        message: `Submission "${updated.projectName}" has been ${actionTarget.type.toLowerCase()} successfully.`,
+        message: `Submission "${updated.projectName}" has been ${variables.status.toLowerCase()} successfully.`,
       })
-
       setActionTarget(null)
       setReviewNote("")
-      triggerRefresh()
-      onDataChanged()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: submissionsKey }),
+        queryClient.invalidateQueries({ queryKey: ["mentor-stats", apiMode, user?.id] }),
+      ])
+    },
+  })
+
+  const handleConfirmAction = async () => {
+    if (!actionTarget || mutation.isPending) return
+    setFeedbackNotice(null)
+    try {
+      await mutation.mutateAsync({
+        id: actionTarget.submission.id,
+        status: actionTarget.type,
+        feedback: reviewNote.trim() || undefined,
+      })
     } catch (err: unknown) {
       const msg =
         err instanceof ApiConnectionError || err instanceof ApiHttpError || err instanceof Error
           ? err.message
           : `Failed to update submission status to ${actionTarget.type}.`
       setFeedbackNotice({ type: "error", message: msg })
-    } finally {
-      setIsActionLoading(false)
     }
   }
 
@@ -191,7 +186,18 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
 
   return (
     <div className="space-y-4">
-      {/* Feedback Alert */}
+      {submissionsQuery.isError && (
+        <Alert variant="destructive" className="py-2.5" role="alert">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle className="text-xs font-semibold">Could not load submissions</AlertTitle>
+          <AlertDescription className="mt-0.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span>{submissionsQuery.error instanceof Error ? submissionsQuery.error.message : "The submission queue could not be loaded."}</span>
+            <Button variant="outline" size="sm" onClick={() => void submissionsQuery.refetch()} disabled={submissionsQuery.isFetching}>Try again</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Mutation feedback */}
       {feedbackNotice && (
         <Alert
           variant={feedbackNotice.type === "success" ? "success" : "destructive"}
@@ -216,14 +222,13 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           {/* Search Input */}
           <div className="relative flex-1">
+            <label htmlFor="submission-search" className="sr-only">Search submissions</label>
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search by student name, email, or project name..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                setCurrentPage(1)
-              }}
+              id="submission-search"
+              placeholder="Search by student or project name..."
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
               className="pl-9 text-xs"
             />
           </div>
@@ -231,7 +236,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
           <Button
             variant="outline"
             size="sm"
-            onClick={triggerRefresh}
+            onClick={handleRefresh}
             disabled={isLoading}
             className="text-xs gap-1.5 self-end sm:self-auto"
           >
@@ -249,6 +254,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
           <button
             type="button"
             onClick={() => handleFilterChange("ALL")}
+            aria-pressed={statusFilter === "ALL"}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               statusFilter === "ALL"
                 ? "bg-primary text-primary-foreground shadow-xs font-semibold"
@@ -261,6 +267,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
           <button
             type="button"
             onClick={() => handleFilterChange("APPROVED")}
+            aria-pressed={statusFilter === "APPROVED"}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1 ${
               statusFilter === "APPROVED"
                 ? "bg-emerald-600 text-white shadow-xs font-semibold"
@@ -274,6 +281,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
           <button
             type="button"
             onClick={() => handleFilterChange("REJECTED")}
+            aria-pressed={statusFilter === "REJECTED"}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1 ${
               statusFilter === "REJECTED"
                 ? "bg-destructive text-destructive-foreground shadow-xs font-semibold"
@@ -287,6 +295,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
           <button
             type="button"
             onClick={() => handleFilterChange("PENDING")}
+            aria-pressed={statusFilter === "PENDING"}
             className={`rounded-md px-3 py-1 text-xs font-medium transition-colors flex items-center gap-1 ${
               statusFilter === "PENDING"
                 ? "bg-amber-600 text-white shadow-xs font-semibold"
@@ -316,7 +325,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             <Skeleton className="h-14 w-full" />
             <Skeleton className="h-14 w-full" />
           </div>
-        ) : submissions.length === 0 ? (
+        ) : submissionsQuery.isError && !submissionsQuery.data ? null : submissions.length === 0 ? (
           <div className="p-10 text-center space-y-2">
             <HelpCircle className="h-8 w-8 text-muted-foreground mx-auto" />
             <h4 className="text-sm font-semibold text-foreground">No Submissions Found</h4>
@@ -402,6 +411,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
                             setActionTarget({ submission: sub, type: "REJECTED" })
                             setReviewNote("")
                           }}
+                          disabled={mutation.isPending}
                           className="text-xs h-7 gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
                         >
                           <X className="h-3 w-3" />
@@ -414,6 +424,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
                             setActionTarget({ submission: sub, type: "APPROVED" })
                             setReviewNote("")
                           }}
+                          disabled={mutation.isPending}
                           className="text-xs h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                           <Check className="h-3 w-3" />
@@ -434,7 +445,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              onClick={() => updateUrl({ page: String(Math.max(1, currentPage - 1)) })}
               disabled={currentPage <= 1 || isLoading}
               className="text-xs gap-1 h-8"
             >
@@ -449,7 +460,8 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
                   <button
                     key={pageNum}
                     type="button"
-                    onClick={() => setCurrentPage(pageNum)}
+                    onClick={() => updateUrl({ page: String(pageNum) })}
+                    aria-current={currentPage === pageNum ? "page" : undefined}
                     className={`size-7 rounded text-xs font-semibold transition-colors ${
                       currentPage === pageNum
                         ? "bg-primary text-primary-foreground"
@@ -465,7 +477,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() => updateUrl({ page: String(Math.min(totalPages, currentPage + 1)) })}
               disabled={currentPage >= totalPages || isLoading}
               className="text-xs gap-1 h-8"
             >
@@ -478,7 +490,7 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
 
       {/* Confirmation Dialog Before Approving or Rejecting */}
       {actionTarget && (
-        <Dialog open={!!actionTarget} onOpenChange={() => setActionTarget(null)}>
+        <Dialog open={!!actionTarget} onOpenChange={(open) => { if (!open && !mutation.isPending) setActionTarget(null) }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="text-base flex items-center gap-2">
@@ -495,11 +507,12 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <label className="block text-xs font-semibold">
+              <label htmlFor="mentor-review-feedback" className="block text-xs font-semibold">
                 Mentor Feedback & Instructions for Student{" "}
                 {actionTarget.type === "REJECTED" && <span className="text-destructive">*</span>}
               </label>
               <Textarea
+                id="mentor-review-feedback"
                 placeholder={
                   actionTarget.type === "APPROVED"
                     ? "Great execution on this project! (Optional remarks)..."
@@ -516,21 +529,21 @@ export function MentorSubmissionsTable({ onDataChanged }: MentorSubmissionsTable
                 variant="outline"
                 size="sm"
                 onClick={() => setActionTarget(null)}
-                disabled={isActionLoading}
+                disabled={mutation.isPending}
               >
                 Cancel
               </Button>
               <Button
                 size="sm"
                 onClick={handleConfirmAction}
-                disabled={isActionLoading || (actionTarget.type === "REJECTED" && !reviewNote.trim())}
+                disabled={mutation.isPending || (actionTarget.type === "REJECTED" && !reviewNote.trim())}
                 className={
                   actionTarget.type === "APPROVED"
                     ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                     : "bg-destructive hover:bg-destructive/90 text-white"
                 }
               >
-                {isActionLoading
+                {mutation.isPending
                   ? "Processing..."
                   : actionTarget.type === "APPROVED"
                     ? "Confirm Approval"

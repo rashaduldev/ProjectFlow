@@ -184,7 +184,6 @@ export function StudentSubmissionsView({ section = "dashboard" }: { section?: "d
 
       {/* New Project Submission Form (React Hook Form + Zod) */}
       {(section === "dashboard" || section === "new") && <ProjectSubmissionForm
-        existingSubmissions={submissions}
         onSubmissionSuccess={handleNewSubmission}
       />}
 

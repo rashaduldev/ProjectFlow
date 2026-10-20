@@ -1,12 +1,14 @@
 # Express.js + Prisma Backend API Contract
 
 This document defines the RESTful API contract for the Project Submission and Review Dashboard.
-The frontend integrates directly with these endpoints.
+The frontend calls a same-origin Next.js API adapter, which forwards requests to these endpoints. Configure the adapter with `API_URL` (preferred) or the public fallback `NEXT_PUBLIC_API_URL`; see `.env.example`. These existing Express paths and response shapes take precedence over suggested route names in feature briefs.
 
 ## Base Configuration
-- **Base URL**: `process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"`
+- **Base URL**: `process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"`
 - **Content-Type**: `application/json`
 - **Authentication**: JWT Bearer token sent in `Authorization: Bearer <token>` header.
+
+The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the bearer header server-side. The browser does not read or store the token. API errors include validation (`400`), unauthenticated (`401`), forbidden (`403`), missing resource (`404`), duplicate conflict (`409`), rate limit (`429`), server (`500`), network, and malformed response cases.
 
 ---
 

@@ -3,7 +3,12 @@ import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div className="relative w-full overflow-auto">
+    <div
+      role="region"
+      aria-label={props["aria-label"] || "Scrollable data table"}
+      tabIndex={0}
+      className="relative w-full overflow-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
       <table
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}
@@ -55,6 +60,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
         "h-10 px-4 text-left align-middle font-semibold text-muted-foreground text-xs uppercase tracking-wider [&:has([role=checkbox])]:pr-0",
         className
       )}
+      scope={props.scope ?? "col"}
       {...props}
     />
   )

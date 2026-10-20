@@ -25,9 +25,9 @@ export interface Submission {
   studentId: string
   studentName: string
   studentEmail: string
-  mentorFeedback?: string
-  reviewedAt?: string
-  reviewedBy?: string
+  mentorFeedback?: string | null
+  reviewedAt?: string | null
+  reviewedBy?: string | null
   createdAt: string
   updatedAt: string
 }

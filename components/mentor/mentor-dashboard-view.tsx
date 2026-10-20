@@ -27,7 +27,7 @@ export function MentorDashboardView() {
   const [activeView, setActiveView] = React.useState<"queue" | "stats" | "policy">("queue")
   const statsQuery = useQuery({
     queryKey: ["mentor-stats", apiMode, user?.id],
-    queryFn: () => api.submissions.getStats(),
+    queryFn: () => api.dashboardStats.getMentor(),
     enabled: user?.role === "MENTOR",
   })
   const stats: SubmissionStats | null = statsQuery.data ?? null

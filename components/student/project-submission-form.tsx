@@ -32,7 +32,6 @@ export function ProjectSubmissionForm({
   const { user } = useAuth()
   const [apiError, setApiError] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
-  const submitLock = React.useRef(false)
 
   const {
     register,
@@ -51,19 +50,16 @@ export function ProjectSubmissionForm({
   })
 
   const onSubmit = async (data: SubmissionFormValues) => {
-    if (submitLock.current) return
-    submitLock.current = true
     setApiError(null)
     setSuccessMessage(null)
 
     if (!user) {
       setApiError("You must be signed in as a student to submit a project.")
-      submitLock.current = false
       return
     }
 
     try {
-      const created = await api.submissions.create(
+      const created = await api.studentSubmissions.create(
         {
           projectName: data.projectName.trim(),
           githubUrl: data.githubUrl.trim(),
@@ -101,8 +97,6 @@ export function ProjectSubmissionForm({
       } else {
         setApiError("Failed to submit project.")
       }
-    } finally {
-      submitLock.current = false
     }
   }
 

@@ -77,7 +77,8 @@ export function MentorSubmissionsTable() {
   }, [pathname, router, searchParams])
 
   React.useEffect(() => {
-    setSearchDraft(searchQuery)
+    const timeout = window.setTimeout(() => setSearchDraft(searchQuery), 0)
+    return () => window.clearTimeout(timeout)
   }, [searchQuery])
 
   React.useEffect(() => {
@@ -92,7 +93,7 @@ export function MentorSubmissionsTable() {
   const submissionsKey = ["mentor-submissions", apiMode, user?.id] as const
   const submissionsQuery = useQuery({
     queryKey: [...submissionsKey, currentPage, pageSize, statusFilter, searchQuery],
-    queryFn: () => api.submissions.getAll({
+    queryFn: () => api.mentorSubmissions.getAll({
       page: currentPage,
       limit: pageSize,
       status: statusFilter,
@@ -123,7 +124,7 @@ export function MentorSubmissionsTable() {
 
   const mutation = useMutation({
     mutationFn: (input: { id: string; status: "APPROVED" | "REJECTED"; feedback?: string }) =>
-      api.submissions.updateStatus(input.id, { status: input.status, feedback: input.feedback }, user?.name || "Mentor"),
+      api.mentorSubmissions.updateStatus(input.id, { status: input.status, feedback: input.feedback }, user?.name || "Mentor"),
     onSuccess: async (updated, variables) => {
       setFeedbackNotice({
         type: "success",

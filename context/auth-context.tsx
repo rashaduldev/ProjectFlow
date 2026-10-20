@@ -46,7 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let active = true
-    setApiModeState(getStoredApiMode())
+    Promise.resolve().then(() => {
+      if (active) setApiModeState(getStoredApiMode())
+    })
     api.auth
       .me()
       .then(({ user: currentUser }) => {

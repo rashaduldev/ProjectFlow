@@ -3,7 +3,6 @@
 import * as React from "react"
 import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   GraduationCap,
   ShieldCheck,
@@ -13,7 +12,6 @@ import {
   LogOut,
   Radio,
   Server,
-  UserCheck,
 } from "lucide-react"
 
 interface MentorSidebarProps {

@@ -21,7 +21,6 @@ import {
   MessageSquare,
   GraduationCap,
   Layers,
-  Sparkles,
 } from "lucide-react"
 
 function StatusPill({ status }: { status: SubmissionStatus }) {

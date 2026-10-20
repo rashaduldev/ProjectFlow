@@ -1,16 +1,16 @@
-import { DashboardProvider } from "@/context/dashboard-context"
-import { DashboardView } from "@/components/dashboard/dashboard-view"
+import { AuthProvider } from "@/context/auth-context"
+import { MainDashboard } from "@/components/navigation/main-dashboard"
 
 export const metadata = {
-  title: "Project Submission & Review Dashboard | Programming Hero",
+  title: "Project Submission and Review Dashboard | Programming Hero",
   description:
-    "Standardized project submission, rubric grading, and feedback system for Programming Hero students and web instructors.",
+    "Engineering assessment dashboard for students and mentors with authentication, project submission, duplicate protection, and server-side filtering.",
 }
 
 export default function Page() {
   return (
-    <DashboardProvider>
-      <DashboardView />
-    </DashboardProvider>
+    <AuthProvider>
+      <MainDashboard />
+    </AuthProvider>
   )
 }

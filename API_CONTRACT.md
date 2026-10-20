@@ -1,21 +1,26 @@
-# Express.js + Prisma Backend API Contract
+# Production Full-Stack Project Submission Dashboard — Backend API Contract
 
-This document defines the RESTful API contract for the Project Submission and Review Dashboard.
-The frontend calls a same-origin Next.js API adapter, which forwards requests to these endpoints. Configure the adapter with `API_URL` (preferred) or the public fallback `NEXT_PUBLIC_API_URL`; see `.env.example`. These existing Express paths and response shapes take precedence over suggested route names in feature briefs.
+This document specifies the RESTful API contract for the **Express.js + TypeScript + Prisma + PostgreSQL** backend.
+The Next.js App Router frontend integrates with these exact endpoints.
 
-## Base Configuration
-- **Base URL**: `process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"`
-- **Content-Type**: `application/json`
-- **Authentication**: JWT Bearer token sent in `Authorization: Bearer <token>` header.
+## 1. Environment & Global Configuration
 
-The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the bearer header server-side. The browser does not read or store the token. API errors include validation (`400`), unauthenticated (`401`), forbidden (`403`), missing resource (`404`), duplicate conflict (`409`), rate limit (`429`), server (`500`), network, and malformed response cases.
+- **Base URL Variable**: `NEXT_PUBLIC_API_URL` in `.env.local`
+- **Default Base URL**: `http://localhost:5000/api`
+- **Headers**:
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <jwt_token>` (for token-based requests)
+- **Cookie Authentication**:
+  - Frontend requests configure `credentials: "include"`.
+  - Backend may set secure, `HttpOnly`, `SameSite=Strict/Lax` JWT session cookies (`jwt` or `token`).
+  - CORS must configure `credentials: true` and `origin: "http://localhost:3000"`.
 
 ---
 
-## 1. Authentication Endpoints
+## 2. Authentication Endpoints
 
-### Register User
-- **Method**: `POST /auth/register`
+### Student Registration
+- **Route**: `POST /auth/signup` (Alias: `POST /auth/register`)
 - **Access**: Public
 - **Request Body**:
 ```json
@@ -23,14 +28,15 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
   "name": "Tanvir Ahmed",
   "email": "tanvir@example.com",
   "password": "Password123!",
-  "role": "STUDENT" // "STUDENT" | "MENTOR"
+  "role": "STUDENT"
 }
 ```
+*Note*: Self-registration is restricted to students. Mentor accounts must not be self-registered.
 - **Success Response** (`201 Created`):
 ```json
 {
   "user": {
-    "id": "usr_101",
+    "id": "usr_student_101",
     "name": "Tanvir Ahmed",
     "email": "tanvir@example.com",
     "role": "STUDENT"
@@ -39,18 +45,18 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
 }
 ```
 - **Error Responses**:
-  - `400 Bad Request`: Validation failure (invalid email, weak password, missing fields).
-  - `409 Conflict`: User with email already exists.
+  - `400 Bad Request`: Validation failure (invalid email, password < 6 characters).
+  - `409 Conflict`: Email already registered.
 
 ---
 
-### Login User
-- **Method**: `POST /auth/login`
+### User Login
+- **Route**: `POST /auth/login`
 - **Access**: Public
 - **Request Body**:
 ```json
 {
-  "email": "tanvir@example.com",
+  "email": "student@example.com",
   "password": "Password123!"
 }
 ```
@@ -58,10 +64,10 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
 ```json
 {
   "user": {
-    "id": "usr_101",
+    "id": "usr_student_101",
     "name": "Tanvir Ahmed",
-    "email": "tanvir@example.com",
-    "role": "STUDENT"
+    "email": "student@example.com",
+    "role": "STUDENT" // or "MENTOR"
   },
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
@@ -72,37 +78,37 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
 
 ---
 
-### Get Authenticated User Profile
-- **Method**: `GET /auth/me`
+### Current Session Profile
+- **Route**: `GET /auth/me`
 - **Access**: Protected (`STUDENT` or `MENTOR`)
-- **Headers**: `Authorization: Bearer <token>`
 - **Success Response** (`200 OK`):
 ```json
 {
   "user": {
-    "id": "usr_101",
+    "id": "usr_student_101",
     "name": "Tanvir Ahmed",
-    "email": "tanvir@example.com",
+    "email": "student@example.com",
     "role": "STUDENT"
   }
 }
 ```
+- **Error Responses**:
+  - `401 Unauthorized`: Missing or invalid session/token.
 
 ---
 
-## 2. Student Submissions Endpoints
+## 3. Student Submissions Endpoints
 
-### Submit Project
-- **Method**: `POST /submissions`
+### Create Project Submission
+- **Route**: `POST /submissions`
 - **Access**: Protected (`STUDENT` only)
-- **Headers**: `Authorization: Bearer <token>`
 - **Request Body**:
 ```json
 {
   "projectName": "CareerHub Job Portal",
   "githubUrl": "https://github.com/student/careerhub",
   "liveUrl": "https://careerhub.vercel.app",
-  "description": "Full-stack job application tracker with role-based auth and filterable listings."
+  "description": "Fullstack job application tracker with role-based dashboards and filterable listings."
 }
 ```
 - **Success Response** (`201 Created`):
@@ -112,25 +118,24 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
   "projectName": "CareerHub Job Portal",
   "githubUrl": "https://github.com/student/careerhub",
   "liveUrl": "https://careerhub.vercel.app",
-  "description": "Full-stack job application tracker with role-based auth and filterable listings.",
+  "description": "Fullstack job application tracker...",
   "status": "PENDING",
-  "studentId": "usr_101",
+  "studentId": "usr_student_101",
   "studentName": "Tanvir Ahmed",
-  "studentEmail": "tanvir@example.com",
+  "studentEmail": "student@example.com",
   "createdAt": "2026-10-20T12:00:00.000Z",
   "updatedAt": "2026-10-20T12:00:00.000Z"
 }
 ```
 - **Error Responses**:
-  - `400 Bad Request`: Validation failure (malformed URL, empty description).
-  - `409 Conflict`: Duplicate submission ("A pending submission for this project or repository already exists.").
+  - `400 Bad Request`: Missing or invalid field syntax.
+  - `409 Conflict`: Duplicate submission already pending for this project name or repository.
 
 ---
 
 ### Get Student's Own Submissions
-- **Method**: `GET /submissions/my-submissions`
+- **Route**: `GET /submissions/my` (Alias: `GET /submissions/my-submissions`)
 - **Access**: Protected (`STUDENT` only)
-- **Headers**: `Authorization: Bearer <token>`
 - **Success Response** (`200 OK`):
 ```json
 [
@@ -139,7 +144,7 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
     "projectName": "CareerHub Job Portal",
     "githubUrl": "https://github.com/student/careerhub",
     "liveUrl": "https://careerhub.vercel.app",
-    "description": "Full-stack job application tracker...",
+    "description": "Fullstack job application tracker...",
     "status": "PENDING", // "PENDING" | "APPROVED" | "REJECTED"
     "mentorFeedback": null,
     "createdAt": "2026-10-20T12:00:00.000Z",
@@ -150,33 +155,31 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
 
 ---
 
-## 3. Mentor Submissions Endpoints
+## 4. Mentor Submissions Endpoints
 
-### Get Aggregated Statistics
-- **Method**: `GET /submissions/stats`
+### Aggregated Metrics
+- **Route**: `GET /mentor/stats` (Alias: `GET /submissions/stats`)
 - **Access**: Protected (`MENTOR` only)
-- **Headers**: `Authorization: Bearer <token>`
 - **Success Response** (`200 OK`):
 ```json
 {
-  "totalPending": 12,
-  "totalApproved": 45,
-  "totalRejected": 8,
-  "totalSubmissions": 65
+  "totalPending": 14,
+  "totalApproved": 52,
+  "totalRejected": 9,
+  "totalSubmissions": 75
 }
 ```
 
 ---
 
-### Get Paginated Submissions with Server-Side Filtering
-- **Method**: `GET /submissions`
+### Paginated Submissions with Server-Side Filtering
+- **Route**: `GET /mentor/submissions` (Alias: `GET /submissions`)
 - **Access**: Protected (`MENTOR` only)
-- **Headers**: `Authorization: Bearer <token>`
 - **Query Parameters**:
-  - `page` (optional, default: `1`): Current page index
-  - `limit` (optional, default: `10`): Items per page
-  - `status` (optional): Filter by `"APPROVED"`, `"REJECTED"`, or `"PENDING"`
-  - `search` (optional): Text search across project name or student name
+  - `page` (number, default: `1`): Current page index
+  - `limit` (number, default: `10`): Items per page
+  - `status` (string, optional): `"APPROVED"`, `"REJECTED"`, or `"PENDING"`
+  - `search` (string, optional): Search keyword
 - **Success Response** (`200 OK`):
 ```json
 {
@@ -186,21 +189,23 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
       "projectName": "CareerHub Job Portal",
       "githubUrl": "https://github.com/student/careerhub",
       "liveUrl": "https://careerhub.vercel.app",
-      "description": "Full-stack job application tracker...",
+      "description": "Fullstack job application tracker...",
       "status": "PENDING",
-      "studentId": "usr_101",
+      "studentId": "usr_student_101",
       "studentName": "Tanvir Ahmed",
-      "studentEmail": "tanvir@example.com",
+      "studentEmail": "student@example.com",
       "mentorFeedback": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
       "createdAt": "2026-10-20T12:00:00.000Z",
       "updatedAt": "2026-10-20T12:00:00.000Z"
     }
   ],
   "pagination": {
-    "total": 65,
+    "total": 75,
     "page": 1,
     "limit": 10,
-    "totalPages": 7
+    "totalPages": 8
   }
 }
 ```
@@ -208,14 +213,13 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
 ---
 
 ### Approve or Reject Submission
-- **Method**: `PATCH /submissions/:id/status`
+- **Route**: `PATCH /mentor/submissions/:id/status` (Alias: `PATCH /submissions/:id/status`)
 - **Access**: Protected (`MENTOR` only)
-- **Headers**: `Authorization: Bearer <token>`
 - **Request Body**:
 ```json
 {
   "status": "APPROVED", // "APPROVED" | "REJECTED"
-  "feedback": "Clean repository structure and all requirements met!" // optional
+  "feedback": "Clean repository structure and all requirements met!"
 }
 ```
 - **Success Response** (`200 OK`):
@@ -225,13 +229,12 @@ The Next.js adapter stores the returned JWT in an HttpOnly cookie and adds the b
   "projectName": "CareerHub Job Portal",
   "status": "APPROVED",
   "mentorFeedback": "Clean repository structure and all requirements met!",
-  "reviewedAt": "2026-10-20T13:00:00.000Z",
-  "reviewedBy": "Engr. Nayeem Chowdhury",
-  "updatedAt": "2026-10-20T13:00:00.000Z"
+  "reviewedAt": "2026-10-20T13:30:00.000Z",
+  "reviewedBy": "Nayeem Chowdhury",
+  "updatedAt": "2026-10-20T13:30:00.000Z"
 }
 ```
 - **Error Responses**:
   - `400 Bad Request`: Invalid status value.
-  - `403 Forbidden`: User is not a mentor.
+  - `403 Forbidden`: User is not authorized as a mentor.
   - `404 Not Found`: Submission with `:id` not found.
-

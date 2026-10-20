@@ -36,14 +36,14 @@ export function AuthPageForm({ mode }: AuthPageFormProps) {
 
   const onLogin = loginForm.handleSubmit(async (values) => {
     clearAuthError()
-    const role = await login(values.email.trim(), values.password)
-    if (role) redirectForRole(role)
+    const loggedUser = await login(values.email.trim(), values.password)
+    if (loggedUser) redirectForRole(loggedUser.role)
   })
 
   const onSignup = signupForm.handleSubmit(async ({ name, email, password }) => {
     clearAuthError()
-    const role = await register(name.trim(), email.trim(), password)
-    if (role) redirectForRole(role)
+    const loggedUser = await register(name.trim(), email.trim(), password, "STUDENT")
+    if (loggedUser) redirectForRole(loggedUser.role)
   })
 
   const generalError = authError

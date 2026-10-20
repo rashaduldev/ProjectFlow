@@ -64,8 +64,8 @@ export function StudentSubmissionsView({ section = "dashboard" }: { section?: "d
     let isMounted = true
 
     api.studentSubmissions
-      .getMine(user.id)
-      .then((data) => {
+      .getMySubmissions(user.id)
+      .then((data: Submission[]) => {
         if (isMounted) {
           setSubmissions(data)
           setIsLoading(false)

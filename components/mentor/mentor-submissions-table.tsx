@@ -125,7 +125,7 @@ export function MentorSubmissionsTable() {
   const mutation = useMutation({
     mutationFn: (input: { id: string; status: "APPROVED" | "REJECTED"; feedback?: string }) =>
       api.mentorSubmissions.updateStatus(input.id, { status: input.status, feedback: input.feedback }, user?.name || "Mentor"),
-    onSuccess: async (updated, variables) => {
+    onSuccess: async (updated: Submission, variables) => {
       setFeedbackNotice({
         type: "success",
         message: `Submission "${updated.projectName}" has been ${variables.status.toLowerCase()} successfully.`,
@@ -347,7 +347,7 @@ export function MentorSubmissionsTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {submissions.map((sub) => {
+              {submissions.map((sub: Submission) => {
                 const dateStr = new Date(sub.createdAt).toLocaleDateString(undefined, {
                   month: "short",
                   day: "numeric",
